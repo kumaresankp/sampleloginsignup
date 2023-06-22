@@ -1,6 +1,7 @@
 # sampleloginsignup
-dependencies
+## dependencies
 
-express
-mysql
-bcrypt
+* express
+* mysql
+* bcrypt
+* hbs
