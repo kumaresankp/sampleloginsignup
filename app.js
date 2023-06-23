@@ -1,105 +1,69 @@
-const express = require('express');
-const mysql = require("mysql")
-const dotenv = require('dotenv')
-const bcrypt = require("bcryptjs")
+const express = require("express");
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const path = require('path');
+
 const app = express();
+const PORT = 3000;
+const SECRET_KEY = "zsrfdcgyujkotrdssdxc";
 
-app.use(express.urlencoded({ extended: 'false' }))
-app.use(express.json())
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
 
-dotenv.config({ path: './.env' })
+const users = [];
 
-const db = mysql.createConnection({
-    host: "sql.freedb.tech",
-    user: "freedb_kumaresan",
-    password: "vZ425DB!2EzVPGr",
-    database: "freedb_login-db"
-})
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'register.html'));
+});
 
-db.connect((error) => {
-    if (error) {
-        console.log(error)
-    } else {
-        console.log("MySQL connected!")
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.post('/login', (req, res) => {
+    const { email, password } = req.body;
+    const user = users.find((user) => user.email === email);
+    if (!user) {
+        return res.status(404).send('User not found');
     }
-})
 
-app.set('view engine', 'hbs')
-
-const path = require("path")
-
-const publicDir = path.join(__dirname, './public')
-
-app.use(express.static(publicDir))
-
-
-
-app.get("/", (req, res) => {
-    res.render("index")
-})
-
-app.get("/register", (req, res) => {
-    res.render("register")
-})
-app.get("/login", (req, res) => {
-    res.render("login")
-})
-
-app.post("/auth/register", (req, res) => {
-    const { name, email, password, password_confirm } = req.body;
-
-    db.query('SELECT email FROM users WHERE email = ?', [email], async(error, results) => {
-        if (error) {
-            console.log(error);
-        }
-        if (results.length > 0) {
-            return res.render('register', {
-                message: 'This email is already in use'
-            });
-        } else {
-
-
-            db.query('INSERT INTO users SET ?', { name: name, email: email, passsword: password }, (err, result) => {
-                if (err) {
-                    console.log(err);
-                } else {
-                    return res.render('login', {
-                        message: 'User registered!'
-                    });
-                }
-            });
-        }
-    });
-});
-
-app.post("/auth/login", (req, res) => {
-    const { name, password } = req.body;
-
-    db.query('SELECT * FROM users WHERE name = ? OR email = ?', [name, name], async(error, results) => {
-        if (error) {
-            console.log(error);
-        }
-        if (results.length === 0) {
-            return res.render('login', {
-                message: 'Invalid name or password'
-            });
+    bcrypt.compare(password, user.password, (err, result) => {
+        if (err || !result) {
+            return res.status(401).send("Incorrect Password");
         }
 
-        const user = results[0];
 
-        if (password !== user.passsword) {
-            return res.render('login', {
-                message: 'Invalid name or password'
-            });
-        }
-
-        return res.render('index', {
-            message: 'Logged in successfully!'
-        });
+        const token = jwt.sign({ email: user.email }, SECRET_KEY);
+        res.send(token);
     });
 });
 
 
-app.listen(5000, () => {
-    console.log("server started on port 5000")
-})
+app.post('/signup', (req, res) => {
+    const { email, password } = req.body;
+    const userExists = users.find((user) => user.mail === email);
+    if (userExists) {
+        return res.status(409).send('User already Exists');
+    }
+    bcrypt.hash(password, 10, (err, hash) => {
+        if (err) {
+            return res.status(500).send('Error while hashing');
+        }
+        const newUser = {
+            email: email,
+            password: hash,
+        };
+
+        users.push(newUser);
+
+        const token = jwt.sign({ email: newUser.email }, SECRET_KEY);
+        res.send(token);
+    });
+});
+
+
+
+app.listen(PORT, () => {
+    console.log(`server is running on ${PORT}`);
+});
